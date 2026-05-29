@@ -1,9 +1,9 @@
 name: Build Portable Package
 
 on:
-  workflow_dispatch:       # 允许手动触发
+  workflow_dispatch:       # 手动触发
   push:
-    branches: [ "main" ]   # 推送到 main 分支时自动构建
+    branches: [ "main" ]   # 自动构建
 
 jobs:
   build:
@@ -29,16 +29,13 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Install Node.js dependencies
-        run: npm install
-
       - name: Find node.exe path
         id: node_path
         run: |
           $nodePath = (Get-Command node).Source
           echo "NODE_EXE_PATH=$nodePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Build with PyInstaller (onedir mode)
+      - name: Build with PyInstaller (onedir)
         run: |
           pyinstaller --onedir --name deepseek-free-api `
             --hidden-import=curl_cffi `
@@ -48,11 +45,17 @@ jobs:
             --add-data "sha3_wasm_bg.wasm;." `
             proxy.py
 
-      - name: Copy Node.js runtime into dist folder
+      - name: Copy Node.js runtime and extra files
         run: |
+          # 复制 node.exe
           Copy-Item -Path "$env:NODE_EXE_PATH" -Destination "dist\deepseek-free-api\"
-          Copy-Item -Path "deploy.sh" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
+          # 复制其他必要文件（确保 JS/WASM 存在）
+          Copy-Item -Path "pow_solver.js" -Destination "dist\deepseek-free-api\" -Force
+          Copy-Item -Path "pow_native.py" -Destination "dist\deepseek-free-api\" -Force
+          Copy-Item -Path "sha3_wasm_bg.wasm" -Destination "dist\deepseek-free-api\" -Force
+          # 可选：复制 README 和部署脚本
           Copy-Item -Path "README.md" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "deploy.sh" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
 
       - name: Create run.bat launcher
         run: |
@@ -65,7 +68,7 @@ jobs:
           pause
           "@ | Out-File -FilePath "dist\deepseek-free-api\run.bat" -Encoding ascii
 
-      - name: Upload artifact (portable package)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: deepseek-free-api-portable
