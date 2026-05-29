@@ -24,16 +24,23 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 🔍 新增：查看文件列表
-      - name: List files (debug)
+      # ✅ 正确的文件列表查看（PowerShell 兼容）
+      - name: List all Python files
         run: |
-          dir
-          echo "=== 查找所有 .py 文件 ==="
-          dir /s *.py
+          Write-Host "=== 根目录文件 ==="
+          Get-ChildItem -File
+          Write-Host "=== 递归查找所有 .py 文件 ==="
+          Get-ChildItem -Recurse -Filter *.py | Select-Object FullName
 
+      # 可选：查看 README 了解启动方式（便于调试）
+      - name: Show README (first 30 lines)
+        run: |
+          Get-Content README.md -Head 30
+
+      # ✅ 使用 proxy.py 作为入口打包（最可能的入口文件）
       - name: Build with PyInstaller
         run: |
-          pyinstaller --onefile --name deepseek-free-api --hidden-import=curl_cffi main.py   # 这里先保留 main.py，后面根据上一步的结果修改
+          pyinstaller --onefile --name deepseek-free-api --hidden-import=curl_cffi proxy.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
