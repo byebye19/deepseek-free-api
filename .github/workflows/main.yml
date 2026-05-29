@@ -1,9 +1,9 @@
-name: Build Windows Executable
+name: Build Portable Package
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:       # 允许手动触发
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]   # 推送到 main 分支时自动构建
 
 jobs:
   build:
@@ -12,38 +12,61 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install setuptools
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # ✅ 正确的文件列表查看（PowerShell 兼容）
-      - name: List all Python files
-        run: |
-          Write-Host "=== 根目录文件 ==="
-          Get-ChildItem -File
-          Write-Host "=== 递归查找所有 .py 文件 ==="
-          Get-ChildItem -Recurse -Filter *.py | Select-Object FullName
+      - name: Install Node.js dependencies
+        run: npm install
 
-      # 可选：查看 README 了解启动方式（便于调试）
-      - name: Show README (first 30 lines)
+      - name: Find node.exe path
+        id: node_path
         run: |
-          Get-Content README.md -Head 30
+          $nodePath = (Get-Command node).Source
+          echo "NODE_EXE_PATH=$nodePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      # ✅ 使用 proxy.py 作为入口打包（最可能的入口文件）
-      - name: Build with PyInstaller
+      - name: Build with PyInstaller (onedir mode)
         run: |
-          pyinstaller --onefile --name deepseek-free-api --hidden-import=curl_cffi proxy.py
+          pyinstaller --onedir --name deepseek-free-api `
+            --hidden-import=curl_cffi `
+            --add-data "node_modules;node_modules" `
+            --add-data "pow_solver.js;." `
+            --add-data "pow_native.py;." `
+            --add-data "sha3_wasm_bg.wasm;." `
+            proxy.py
 
-      - name: Upload artifact
+      - name: Copy Node.js runtime into dist folder
+        run: |
+          Copy-Item -Path "$env:NODE_EXE_PATH" -Destination "dist\deepseek-free-api\"
+          Copy-Item -Path "deploy.sh" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
+          Copy-Item -Path "README.md" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
+
+      - name: Create run.bat launcher
+        run: |
+          @"
+          @echo off
+          set PATH=%~dp0;%PATH%
+          echo Starting DeepSeek Free API...
+          echo Visit http://localhost:8000/admin after startup
+          "%~dp0deepseek-free-api.exe"
+          pause
+          "@ | Out-File -FilePath "dist\deepseek-free-api\run.bat" -Encoding ascii
+
+      - name: Upload artifact (portable package)
         uses: actions/upload-artifact@v4
         with:
-          name: deepseek-free-api-windows
-          path: dist/*.exe
+          name: deepseek-free-api-portable
+          path: dist/deepseek-free-api
