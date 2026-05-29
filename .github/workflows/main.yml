@@ -1,9 +1,9 @@
 name: Build Portable Package
 
 on:
-  workflow_dispatch:       # 手动触发
+  workflow_dispatch:
   push:
-    branches: [ "main" ]   # 自动构建
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -39,7 +39,6 @@ jobs:
         run: |
           pyinstaller --onedir --name deepseek-free-api `
             --hidden-import=curl_cffi `
-            --add-data "node_modules;node_modules" `
             --add-data "pow_solver.js;." `
             --add-data "pow_native.py;." `
             --add-data "sha3_wasm_bg.wasm;." `
@@ -47,13 +46,10 @@ jobs:
 
       - name: Copy Node.js runtime and extra files
         run: |
-          # 复制 node.exe
           Copy-Item -Path "$env:NODE_EXE_PATH" -Destination "dist\deepseek-free-api\"
-          # 复制其他必要文件（确保 JS/WASM 存在）
           Copy-Item -Path "pow_solver.js" -Destination "dist\deepseek-free-api\" -Force
           Copy-Item -Path "pow_native.py" -Destination "dist\deepseek-free-api\" -Force
           Copy-Item -Path "sha3_wasm_bg.wasm" -Destination "dist\deepseek-free-api\" -Force
-          # 可选：复制 README 和部署脚本
           Copy-Item -Path "README.md" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
           Copy-Item -Path "deploy.sh" -Destination "dist\deepseek-free-api\" -ErrorAction SilentlyContinue
 
